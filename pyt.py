@@ -75,39 +75,42 @@ def hamming_decoding(encoded_sequence, code_dict):
     reverse_dict = {v: k for k, v in code_dict.items()}
     decoded_sequence = ""
     errors = []
-    code_length = 7  # Длина закодированного слова в коде Хэмминга (7,4)
+    code_length = 7  # Длина закодированного слова для (7,4) кода Хэмминга
 
     print("Словарь декодирования (code_dict):", code_dict)
     print("Обратный словарь для декодирования (reverse_dict):", reverse_dict)
-    
+
     i = 0
     while i < len(encoded_sequence):
-        # Получаем 7-битный код
+        # Получаем очередное 7-битное кодовое слово
         code = encoded_sequence[i:i + code_length]
         code_array = binary_str_to_array(code)
-        
+
         # Рассчитываем синдром для обнаружения ошибки
         syndrome = np.dot(H_matrix, code_array) % 2
         syndrome_decimal = int("".join(map(str, syndrome)), 2)
-        
+
         if syndrome_decimal != 0:
-            # Если синдром указывает на ошибку, то исправляем бит, указанный синдромом (1-based index)
+            # Обнаружена одиночная ошибка, инвертируем указанный бит
             errors.append(f"Error detected at bit {syndrome_decimal} in code: {code}")
             if 1 <= syndrome_decimal <= code_length:
                 code_array[syndrome_decimal - 1] = (code_array[syndrome_decimal - 1] + 1) % 2  # Инверсия бита
-            else:
-                errors.append(f"Uncorrectable error in code: {code}")
+            corrected_code = array_to_binary_str(code_array)
+            
+            # Добавляем исправленный код в обратный словарь, если его там нет
+            if corrected_code not in reverse_dict:
+                reverse_dict[corrected_code] = reverse_dict.get(code, '?')
+        else:
+            corrected_code = code  # Если ошибки не было, то код остается неизменным
 
-        # После исправления ищем результат в словаре обратного сопоставления
-        corrected_code = array_to_binary_str(code_array)
         decoded_symbol = reverse_dict.get(corrected_code, '?')
-        
+
         # Логирование процесса декодирования
         print(f"Syndrome: {syndrome}, Corrected code: {corrected_code}, Symbol: {decoded_symbol}")
-        
+
         if decoded_symbol == '?':
             errors.append(f"Symbol could not be decoded for corrected code: {corrected_code}")
-        
+
         decoded_sequence += decoded_symbol
         i += code_length
 
