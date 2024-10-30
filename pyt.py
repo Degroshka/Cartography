@@ -3,7 +3,7 @@ from tkinter import messagebox, filedialog
 import math
 import numpy as np
 
-# Generator matrix from the image
+# Матрица кодирования и проверочная матрица для кодов Хэмминга
 G_matrix = np.array([
     [1, 0, 0, 0, 1, 1, 1],
     [0, 1, 0, 0, 1, 0, 1],
@@ -15,12 +15,15 @@ H_matrix = np.array([
     [1, 1, 0, 1, 0, 1, 0],
     [1, 0, 1, 1, 0, 0, 1]
 ])
+
+# Функция для расчета кумулятивной вероятности
 def calculate_cumulative_probabilities(probabilities):
     q = [0] * len(probabilities)
     for i in range(1, len(probabilities)):
         q[i] = q[i - 1] + probabilities[i - 1]
     return q
-# Просчёт словаря [символ, его код] для кодировки Шеннона
+
+# Кодирование Шеннона
 def shannon_coding(symbols, probabilities):
     code_dict = {}
     cumulative_probs = calculate_cumulative_probabilities(probabilities)
@@ -40,7 +43,7 @@ def shannon_coding(symbols, probabilities):
         code_dict[symbol] = code_word
     return code_dict
 
-# Shannon decoding (simple lookup)
+# Декодировка Шеннона
 def shannon_decoding(encoded_sequence, code_dict):
     reverse_dict = {v: k for k, v in code_dict.items()}
     decoded_sequence = ""
@@ -52,59 +55,63 @@ def shannon_decoding(encoded_sequence, code_dict):
             current_code = ""
     return decoded_sequence
 
-# Convert binary string to numpy array of integers
+# Переводит строку бинарного кода в массив numpy
 def binary_str_to_array(binary_str):
     return np.array([int(bit) for bit in binary_str])
 
-# Convert numpy array of integers to binary string
+# Переводит массив numpy в строку бинарного кода
 def array_to_binary_str(array):
     return ''.join(str(bit) for bit in array)
 
-# Hamming coding
+# Кодирование Хэмминга
 def hamming_coding(symbols):
     code_dict = {}
     for i, symbol in enumerate(symbols):
-        binary_rep = format(i, 'b').zfill(4)
+        binary_rep = format(i, 'b').zfill(4)  # бинарное представление символа
         data_bits = binary_str_to_array(binary_rep)
         encoded_bits = np.dot(data_bits, G_matrix) % 2
-        code_dict[symbol] = array_to_binary_str(encoded_bits)  # Сохраняем весь 7-битный код
+        code_dict[symbol] = array_to_binary_str(encoded_bits)
     return code_dict
 
-# Hamming decoding with error correction
+# Декодирование Хэмминга с исправлением ошибок
 def hamming_decoding(encoded_sequence, code_dict):
     reverse_dict = {v: k for k, v in code_dict.items()}
     decoded_sequence = ""
     errors = []
-    code_length = 7  # Длина закодированного слова для (7,4) кода Хэмминга
-    print("Словарь декодирования (code_dict):", code_dict)
-    print("Обратный словарь для декодирования (reverse_dict):", reverse_dict)
+    code_length = 7
+
     i = 0
     while i < len(encoded_sequence):
-        # Получаем очередное 7-битное кодовое слово
         code = encoded_sequence[i:i + code_length]
         code_array = binary_str_to_array(code)
-        # Рассчитываем синдром для обнаружения ошибки
+
+        # Рассчитываем синдром для обнаружения ошибок
         syndrome = np.dot(H_matrix, code_array) % 2
         syndrome_decimal = int("".join(map(str, syndrome)), 2)
+
         if syndrome_decimal != 0:
-            # Обнаружена одиночная ошибка, инвертируем указанный бит
-            errors.append(f"Error detected at bit {syndrome_decimal} in code: {code}")
+            error_message = f"Обнаружена ошибка в бите {syndrome_decimal} для кода: {code}"
+            errors.append(error_message)
+
             if 1 <= syndrome_decimal <= code_length:
-                code_array[syndrome_decimal - 1] = (code_array[syndrome_decimal - 1] + 1) % 2  # Инверсия бита
-            corrected_code = array_to_binary_str(code_array)
-            # Добавляем исправленный код в обратный словарь, если его там нет
+                code_array[syndrome_decimal - 1] = (code_array[syndrome_decimal - 1] + 1) % 2
+                corrected_code = array_to_binary_str(code_array)
+                error_message += f". Исправлен код: {corrected_code}"
+                errors.append(error_message)
+
             if corrected_code not in reverse_dict:
                 reverse_dict[corrected_code] = reverse_dict.get(code, '?')
         else:
-            corrected_code = code  # Если ошибки не было, то код остается неизменным
+            corrected_code = code  # нет ошибок
+
         decoded_symbol = reverse_dict.get(corrected_code, '?')
-        # Логирование процесса декодирования
-        print(f"Syndrome: {syndrome}, Corrected code: {corrected_code}, Symbol: {decoded_symbol}")
         if decoded_symbol == '?':
-            errors.append(f"Symbol could not be decoded for corrected code: {corrected_code}")
+            errors.append(f"Не удалось декодировать символ для кода: {corrected_code}")
         decoded_sequence += decoded_symbol
         i += code_length
     return decoded_sequence, errors
+
+# Вычисление метрик кода
 def calculate_code_metrics(code_dict):
     codes = list(code_dict.values())
     code_lengths = set(len(code) for code in codes)
@@ -130,13 +137,15 @@ def calculate_code_metrics(code_dict):
     plotkin_bound = (1 / (1 - (d_min / n))) if d_min / n < 0.5 else None
     varshamov_gilbert_bound = 2 ** n / sum(math.comb(n, k) for k in range(d_min - 1))
     return d_min, hamming_bound, plotkin_bound, varshamov_gilbert_bound
-# Интерфейс tkinter
+
+# Класс для интерфейса tkinter
 class ShannonApp(tk.Tk):
+    # Инициализация и настройка интерфейса
     def __init__(self):
         super().__init__()
         self.title("Кодирование с проверкой на чётность")
         self.geometry("800x600")
-        # Поля для ввода и вывода
+        # Поля ввода
         self.symbols_label = tk.Label(self, text="Символы алфавита")
         self.symbols_label.place(x=50, y=40)
         self.symbols_entry = tk.Entry(self, width=50)
@@ -145,13 +154,13 @@ class ShannonApp(tk.Tk):
         self.sequence_label.place(x=50, y=120)
         self.sequence_entry = tk.Entry(self, width=50)
         self.sequence_entry.place(x=50, y=140)
-        # Выбор кодировки
+        # Радиокнопки для выбора типа кодировки
         self.coding_type = tk.StringVar(value="shannon")
         self.shannon_radio = tk.Radiobutton(self, text="Кодировка Шеннона", variable=self.coding_type, value="shannon")
         self.hamming_radio = tk.Radiobutton(self, text="Кодировка Хэмминга", variable=self.coding_type, value="hamming")
         self.shannon_radio.place(x=50, y=10)
         self.hamming_radio.place(x=200, y=10)
-        # Кнопки для действий
+        # Кнопки действий
         self.calculate_probs_button = tk.Button(self, text="Рассчитать вероятности и коды", command=self.calculate_probabilities)
         self.calculate_probs_button.place(x=50, y=90)
         self.encode_button = tk.Button(self, text="Закодировать с проверочными битами", command=self.encode_sequence)
@@ -162,10 +171,10 @@ class ShannonApp(tk.Tk):
         self.load_button.place(x=400, y=140)
         self.save_button = tk.Button(self, text="Сохранить закодированную последовательность", command=self.save_encoded_sequence)
         self.save_button.place(x=400, y=215)  
-        # Кнопка для вычисления метрик кода
+        # Кнопка для вычисления метрик
         self.calculate_metrics_button = tk.Button(self, text="Вычислить", command=self.calculate_code_metrics_after_encoding)
         self.calculate_metrics_button.place(x=190, y=390)
-        # Поля для отображения кодов и результатов
+        # Поля для отображения результатов
         self.code_label = tk.Label(self, text="Закодированная последовательность")
         self.code_label.place(x=50, y=195)
         self.code_text = tk.Entry(self, width=50)
@@ -180,15 +189,16 @@ class ShannonApp(tk.Tk):
         self.errors_text.place(x=400, y=420)
         self.code_dict_text = tk.Text(self, height=6, width=25)
         self.code_dict_text.place(x=500, y=20)
-         # Поле для отображения метрик кода
+        # Поле для метрик кода
         self.metrics_label = tk.Label(self, text="Кодовые метрики")
         self.metrics_label.place(x=50, y=400)
         self.metrics_text = tk.Text(self, height=6, width=35)
         self.metrics_text.place(x=50, y=420)
-        # Хранение данных
+        # Инициализация данных
         self.symbols = []
         self.probabilities = []
         self.code_dict = {}
+
     # Рассчитать вероятности и создать коды
     def calculate_probabilities(self):
         symbols = self.symbols_entry.get().strip().split()
@@ -200,6 +210,8 @@ class ShannonApp(tk.Tk):
         self.probabilities = [1 / n] * n
         self.code_dict = shannon_coding(self.symbols, self.probabilities) if self.coding_type.get() == "shannon" else hamming_coding(self.symbols)
         self.update_code_dict_display()
+
+    # Кодировать последовательность
     def encode_sequence(self):
         sequence = self.sequence_entry.get().strip()
         if not sequence:
@@ -211,7 +223,8 @@ class ShannonApp(tk.Tk):
         encoded_sequence = ''.join(self.code_dict.get(symbol, '?') for symbol in sequence)
         self.code_text.delete(0, tk.END)
         self.code_text.insert(0, encoded_sequence)
-    # Декодирование последовательности
+
+    # Декодировать последовательность
     def decode_sequence(self):
         encoded_sequence = self.code_text.get().strip()
         if not encoded_sequence:
@@ -225,10 +238,14 @@ class ShannonApp(tk.Tk):
         self.decode_text.insert(0, decoded_sequence)
         self.errors_text.delete(1.0, tk.END)
         self.errors_text.insert(tk.END, "\n".join(errors) if errors else "Ошибок нет")
+
+    # Обновить отображение словаря кодов
     def update_code_dict_display(self):
         self.code_dict_text.delete(1.0, tk.END)
         for symbol, code in self.code_dict.items():
-            self.code_dict_text.insert(tk.END, f"{symbol}: {code}\n")     
+            self.code_dict_text.insert(tk.END, f"{symbol}: {code}\n")
+
+    # Вычислить метрики кода
     def calculate_code_metrics_after_encoding(self):
         if not self.code_dict:
             messagebox.showerror("Error", "Коды ещё не созданы.")
@@ -243,7 +260,8 @@ class ShannonApp(tk.Tk):
             self.metrics_text.insert(tk.END, f"Граница Плоткина: {plotkin_bound:.2f}\n")
         if varshamov_gilbert_bound is not None:
             self.metrics_text.insert(tk.END, f"Граница Варшамова-Гильберта: {varshamov_gilbert_bound:.2f}\n")
-     # Загрузить последовательность из файла
+
+    # Загрузить последовательность из файла
     def load_sequence(self):
         file_path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt")])
         if file_path:
@@ -251,6 +269,7 @@ class ShannonApp(tk.Tk):
                 sequence = file.read().strip()
             self.sequence_entry.delete(0, tk.END)
             self.sequence_entry.insert(0, sequence)
+
     # Сохранить закодированную последовательность в файл
     def save_encoded_sequence(self):
         encoded_sequence = self.code_text.get().strip()
@@ -261,8 +280,8 @@ class ShannonApp(tk.Tk):
         if file_path:
             with open(file_path, 'w') as file:
                 file.write(encoded_sequence)
-            messagebox.showinfo("Success", f"Закодированная последовательность сохранена в {file_path}")       
+            messagebox.showinfo("Success", f"Закодированная последовательность сохранена в {file_path}")
+
 if __name__ == "__main__":
     app = ShannonApp()
     app.mainloop()
-
