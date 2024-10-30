@@ -276,6 +276,7 @@ class ShannonApp(tk.Tk):
                 sequence = file.read().strip()
             self.sequence_entry.delete(0, tk.END)
             self.sequence_entry.insert(0, sequence)
+            messagebox.showinfo("Success", "Последовательность успешно загружена")
 
     # Сохранить закодированную последовательность в файл
     def save_encoded_sequence(self):
@@ -287,7 +288,7 @@ class ShannonApp(tk.Tk):
         if file_path:
             with open(file_path, 'w') as file:
                 file.write(encoded_sequence)
-            messagebox.showinfo("Success", f"Закодированная последовательность сохранена в {file_path}")
+            messagebox.showinfo("Success", "Закодированная последовательность успешно сохранена")
 
 if __name__ == "__main__":
     app = ShannonApp()
