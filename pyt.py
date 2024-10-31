@@ -37,10 +37,10 @@ def shannon_coding(symbols, probabilities):
         for _ in range(code_length):
             fractional_part *= 2
             if fractional_part >= 1:
-                code_word += "0"
+                code_word += "1"
                 fractional_part -= 1
             else:
-                code_word += "1"
+                code_word += "0"
         
         # Добавление четного или нечетного бита
         parity_bit = '1' if code_word.count('1') % 2 == 0 else '0'
