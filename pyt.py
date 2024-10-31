@@ -37,41 +37,47 @@ def shannon_coding(symbols, probabilities):
         for _ in range(code_length):
             fractional_part *= 2
             if fractional_part >= 1:
-                code_word += "1"
+                code_word += "0"
                 fractional_part -= 1
             else:
-                code_word += "0"
-        code_dict[symbol] = code_word
+                code_word += "1"
+        
+        # Добавление четного или нечетного бита
+        parity_bit = '1' if code_word.count('1') % 2 == 0 else '0'
+        code_dict[symbol] = code_word + parity_bit  # Код + проверочный бит
     return code_dict
-
-# Кодирование последовательности с проверочным битом
+# Кодирование последовательности
 def encode_with_parity(sequence, code_dict):
     encoded_sequence = ''
     for symbol in sequence:
         if symbol not in code_dict:
             messagebox.showerror("Error", f"Символ '{symbol}' не найден в кодировочном словаре.")
             return
-        code = code_dict[symbol]
-        parity_bit = '1' if code.count('1') % 2 == 0 else '0'  # Проверочный бит для четности
-        encoded_sequence += code + parity_bit
+        encoded_sequence += code_dict[symbol]  # Используем код уже с проверочным битом
     return encoded_sequence
-
 # Декодирование последовательности с проверкой на четность
 def decode_with_parity(encoded_sequence, code_dict):
     reverse_dict = {v: k for k, v in code_dict.items()}
     decoded_sequence = []
     errors = []
-    code_length = len(next(iter(code_dict.values()))) + 1  # длина кода + проверочный бит
+    code_length = len(next(iter(code_dict.values())))  # Длина кодового слова уже с проверочным битом
     i = 0
     while i < len(encoded_sequence):
-        code = encoded_sequence[i:i + code_length - 1]
-        parity_bit = encoded_sequence[i + len(code)]
-        expected_parity = '1' if code.count('1') % 2 == 0 else '0'
+        code = encoded_sequence[i:i + code_length]
+        if len(code) < code_length:
+            messagebox.showerror("Error", "Закодированная последовательность имеет неверную длину.")
+            return "", []
+        parity_bit = code[-1]  # Последний бит — проверочный
+        code_without_parity = code[:-1]  # Код без проверочного бита
+        expected_parity = '1' if code_without_parity.count('1') % 2 == 0 else '0'
+        
         if expected_parity != parity_bit:
-            errors.append(f"Ошибка на позиции {i // code_length + 1}: {code + parity_bit} (ожидался паритет {expected_parity})")
+            errors.append(f"Ошибка на позиции {i // code_length + 1}: {code} (ожидался паритет {expected_parity})")
         decoded_sequence.append(reverse_dict.get(code, '?'))
         i += code_length
+
     return ''.join(decoded_sequence), errors
+
 
 # Кодирование Хэмминга
 def hamming_coding(symbols):
