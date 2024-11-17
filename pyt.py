@@ -78,46 +78,66 @@ def decode_with_parity(encoded_sequence, code_dict):
 
     return ''.join(decoded_sequence), errors
 
-
 # Кодирование Хэмминга
 def hamming_coding(symbols):
     code_dict = {}
     for i, symbol in enumerate(symbols):
-        binary_rep = format(i, 'b').zfill(4)
+        binary_rep = format(i, 'b').zfill(4)  # Представляем индекс в двоичном формате (4 бита)
         data_bits = np.array([int(bit) for bit in binary_rep])
-        encoded_bits = np.dot(data_bits, G_matrix) % 2
-        code_dict[symbol] = ''.join(str(bit) for bit in encoded_bits)
+        encoded_bits = np.dot(data_bits, G_matrix) % 2  # Кодируем данные через G-матрицу
+        code_dict[symbol] = ''.join(map(str, encoded_bits))  # Генерируем код
     return code_dict
 
+# Декодирование Хэмминга
+
 def hamming_decoding(encoded_sequence, code_dict):
-    reverse_dict = {v: k for k, v in code_dict.items()}
+    reverse_dict = {v[:4]: k for k, v in code_dict.items()}  # Information bits -> symbol
+    valid_codes = set(code_dict.values())  # Все валидные кодовые слова
     decoded_sequence = ""
     errors = []
-    code_length = 7
-
+    code_length = 7  # Длина кодового слова (7,4)
     i = 0
     while i < len(encoded_sequence):
         code = encoded_sequence[i:i + code_length]
+
+        if len(code) != code_length:
+            errors.append(f"Неверный код: {code}")
+            i += code_length
+            continue
+
         code_array = np.array([int(bit) for bit in code])
+        
+        # Вычисление синдрома
         syndrome = np.dot(H_matrix, code_array) % 2
         syndrome_decimal = int("".join(map(str, syndrome)), 2)
 
         if syndrome_decimal != 0:
-            error_message = f"Ошибка в бите {syndrome_decimal} для кода: {code}"
-            errors.append(error_message)
+            # Ошибка в бите syndrome_decimal (нумерация с 1, справа налево)
+            errors.append(f"Ошибка в бите {syndrome_decimal} для кода: {code}")
             if 1 <= syndrome_decimal <= code_length:
-                code_array[syndrome_decimal - 1] = (code_array[syndrome_decimal - 1] + 1) % 2
-                corrected_code = ''.join(str(bit) for bit in code_array)
+                # Исправляем ошибку, меняем бит в позиции syndrome_decimal
+                error_index = code_length - syndrome_decimal  # Преобразуем синдром в индекс с конца
+                code_array[error_index] = 1 - code_array[error_index]  # Инвертируем бит
+                corrected_code = ''.join(map(str, code_array))
                 errors.append(f"Исправленный код: {corrected_code}")
-            if corrected_code not in reverse_dict:
-                reverse_dict[corrected_code] = reverse_dict.get(code, '?')
+            else:
+                errors.append(f"Невозможно исправить код: {code}")
+                corrected_code = code 
         else:
-            corrected_code = code
+            corrected_code = code  # Ошибок нет
 
-        decoded_symbol = reverse_dict.get(corrected_code, '?')
-        decoded_sequence += decoded_symbol
+        if corrected_code in valid_codes:
+            data_bits = corrected_code[:4]  # Извлекаем информационные биты
+            decoded_symbol = reverse_dict.get(data_bits, '?')
+            decoded_sequence += decoded_symbol
+        else:
+            errors.append(f"Неизвестный символ для: {corrected_code}")
+
         i += code_length
+    
     return decoded_sequence, errors
+
+
 
 # Вычисление метрик кода
 def calculate_code_metrics(code_dict):
@@ -151,7 +171,7 @@ class ShannonApp(tk.Tk):
     # Инициализация и настройка интерфейса
     def __init__(self):
         super().__init__()
-        self.title("Кодирование с проверкой на чётность")
+        self.title("Кодирование Шеннона и Хэмминга")
         self.geometry("800x600")
         # Поля ввода
         self.symbols_label = tk.Label(self, text="Символы алфавита")
@@ -169,7 +189,7 @@ class ShannonApp(tk.Tk):
         self.shannon_radio.place(x=50, y=10)
         self.hamming_radio.place(x=200, y=10)
         # Кнопки действий
-        self.calculate_probs_button = tk.Button(self, text="Рассчитать вероятности и коды", command=self.calculate_probabilities)
+        self.calculate_probs_button = tk.Button(self, text="Рассчитать коды", command=self.calculate_probabilities)
         self.calculate_probs_button.place(x=50, y=90)
         self.encode_button = tk.Button(self, text="Закодировать с проверочными битами", command=self.encode_sequence)
         self.encode_button.place(x=50, y=165)
@@ -193,7 +213,7 @@ class ShannonApp(tk.Tk):
         self.decode_text.place(x=50, y=310)
         self.errors_label = tk.Label(self, text="Ошибки")
         self.errors_label.place(x=400, y=400)
-        self.errors_text = tk.Text(self, height=6, width=35)
+        self.errors_text = tk.Text(self, height=6, width=40)
         self.errors_text.place(x=400, y=420)
         self.code_dict_text = tk.Text(self, height=6, width=25)
         self.code_dict_text.place(x=500, y=20)
@@ -295,7 +315,6 @@ class ShannonApp(tk.Tk):
             with open(file_path, 'w') as file:
                 file.write(encoded_sequence)
             messagebox.showinfo("Success", "Закодированная последовательность успешно сохранена")
-
 if __name__ == "__main__":
     app = ShannonApp()
     app.mainloop()
